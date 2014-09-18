@@ -58,6 +58,7 @@ def main(*args):
 						minCode = code.decode('utf-8')
 				else:
 					minCode = code.decode('utf-8')
+				minCode = '// <nowiki>\n' + minCode + '\n// <nowiki>'
 				if tracking:
 					minCode = ( tracking % title ) + minCode
 				page = pywikibot.Page( site, title )
