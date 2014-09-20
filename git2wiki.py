@@ -27,7 +27,7 @@ def main(*args):
 			allowNullEdits = True
 		elif arg == "-track":
 			# The file link is unnecessary on GitHub but useful on wiki
-			tracking = u'// [[File:%s]] (workaround for [[bugzilla:33355]])\n'
+			tracking = u'[[File:%s]] (workaround for [[bugzilla:33355]])'
 		elif arg.startswith('-prefix:'):
 			userPrefix = arg[len('-prefix:'):]
 		elif arg.startswith('-mypath:'):
@@ -56,11 +56,13 @@ def main(*args):
 						summary = summary + '; ' + uglifyjsSummary
 					except execjs.ProgramError:
 						minCode = code.decode('utf-8')
+					minCode = '// <nowiki>\n' + minCode + '\n// </nowiki>'
+					if tracking:
+						minCode = u'// ' + ( tracking % title ) + u'\n' + minCode
 				else:
-					minCode = code.decode('utf-8')
-				minCode = '// <nowiki>\n' + minCode + '\n// </nowiki>'
-				if tracking:
-					minCode = ( tracking % title ) + minCode
+					minCode = '/* <nowiki> */\n' + code.decode('utf-8') + '\n/* </nowiki> */'
+					if tracking:
+						minCode = u'/* ' + ( tracking % title ) + u' */\n' + minCode
 				page = pywikibot.Page( site, title )
 				page.text = minCode
 				page.save( summary )
