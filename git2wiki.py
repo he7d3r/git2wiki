@@ -14,6 +14,7 @@ import uglipyjs
 def main(*args):
     tracking = False
     gitHubUser = False
+    repo = False
     rootDir = os.getcwd()
     gitHubUrl = 'https://github.com/%s'
     # FIXME: Add git hash/version as in
@@ -30,6 +31,8 @@ def main(*args):
             tracking = u'[[File:%s]] (workaround for [[bugzilla:33355]])'
         elif arg.startswith('-prefix:'):
             userPrefix = arg[len('-prefix:'):]
+        elif arg.startswith('-repo:'):
+            repo = arg[len('-repo:'):]
         elif arg.startswith('-mypath:'):
             rootDir = arg[len('-mypath:'):]
         elif arg.startswith('-github:'):
@@ -38,12 +41,12 @@ def main(*args):
         print( 'Missing required paramenter -github:<username>.' )
         return
     gitHubUrl = ( gitHubUrl % gitHubUser ) + '/%s'
-    site = pywikibot.getSite() # pywikibot.Site( 'meta', 'wikimedia' )
+    site = pywikibot.Site() # pywikibot.Site( 'meta', 'meta' )
     for dirpath, dirnames, files in os.walk(rootDir):
         for name in files:
             ext = name.rsplit( '.', 1 )[-1].lower()
             # Assume the structure is <mypath>/<repo>/src/<title.(js|css)>
-            if ext in [ 'js', 'css' ] and dirpath.endswith( '/src' ):
+            if ext in [ 'js', 'css' ] and dirpath.endswith( '/src' ) and ( not repo or repo in name ):
                 # FIXME: Skip unchanged files (use git status?)
                 # Check for allowNullEdits
                 title = userPrefix + name
