@@ -50,8 +50,8 @@ def main(*args):
                 # FIXME: Skip unchanged files (use git status?)
                 # Check for allowNullEdits
                 title = userPrefix + name
-                repo = dirpath.rsplit( '/', 2 )[-2]
-                summary = gitHubSummary % ( gitHubUrl % repo )
+                repoName = dirpath.rsplit( '/', 2 )[-2]
+                summary = gitHubSummary % ( gitHubUrl % repoName )
                 code = open( os.path.join( dirpath, name ), 'r' ).read()
                 if ext == 'js':
                     try:
