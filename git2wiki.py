@@ -28,7 +28,7 @@ def main(*args):
             allowNullEdits = True
         elif arg == "-track":
             # The file link is unnecessary on GitHub but useful on wiki
-            tracking = u'[[File:%s]] (workaround for [[bugzilla:33355]])'
+            tracking = u'[[File:%s]] (workaround for [[phab:T35355]])'
         elif arg.startswith('-prefix:'):
             userPrefix = arg[len('-prefix:'):]
         elif arg.startswith('-repo:'):
