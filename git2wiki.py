@@ -10,6 +10,8 @@ import pywikibot
 import os
 import execjs
 import uglipyjs
+import pkg_resources
+import re
 
 def main(*args):
     tracking = False
@@ -22,7 +24,7 @@ def main(*args):
     gitHubSummary = u'Sync with %s'
     # FIXME: Add UglifyJS version as in
     # "minify with UglifyJS v9.9.9"
-    uglifyjsSummary = u'minify with UglifyJS'
+    uglifyjsSummary = u'minify with UgliPyJS %s'
     for arg in pywikibot.handleArgs():
         if arg == "-all":
             allowNullEdits = True
@@ -56,10 +58,17 @@ def main(*args):
                 if ext == 'js':
                     try:
                         minCode = uglipyjs.compile( code ).decode('utf-8')
-                        summary = summary + '; ' + uglifyjsSummary
+                        summary = summary + '; ' + uglifyjsSummary % ( pkg_resources.get_distribution("uglipyjs").version )
                     except execjs.ProgramError:
                         minCode = code.decode('utf-8')
-                    minCode = '// <nowiki>\n' + minCode + '\n// </nowiki>'
+                    newMinCode = re.sub(
+                        r'(/\*\*\n \*.+? \*/\n)',
+                        r'\1// <nowiki>\n',
+                        minCode,
+                        flags=re.DOTALL)
+                    if newMinCode == minCode:
+                        newMinCode = '// <nowiki>\n' + minCode
+                    minCode = newMinCode + '\n// </nowiki>'
                     if tracking:
                         minCode = u'// ' + ( tracking % title ) + u'\n' + minCode
                 else:
