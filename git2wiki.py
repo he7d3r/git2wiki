@@ -13,6 +13,7 @@ import uglipyjs
 import pkg_resources
 import re
 
+
 def main(*args):
     tracking = False
     gitHubUser = False
@@ -21,16 +22,16 @@ def main(*args):
     gitHubUrl = 'https://github.com/%s'
     # FIXME: Add git hash/version as in
     # "Sync with https://github.com/FOO/BAR (v9.9.9 or HASH)"
-    gitHubSummary = u'Sync with %s'
+    gitHubSummary = 'Sync with %s'
     # FIXME: Add UglifyJS version as in
     # "minify with UglifyJS v9.9.9"
-    uglifyjsSummary = u'minify with UgliPyJS %s'
+    uglifyjsSummary = 'minify with UgliPyJS %s'
     for arg in pywikibot.handleArgs():
         if arg == "-all":
             allowNullEdits = True
         elif arg == "-track":
             # The file link is unnecessary on GitHub but useful on wiki
-            tracking = u'[[File:%s]] (workaround for [[phab:T35355]])'
+            tracking = '[[File:%s]] (workaround for [[phab:T35355]])'
         elif arg.startswith('-prefix:'):
             userPrefix = arg[len('-prefix:'):]
         elif arg.startswith('-repo:'):
@@ -40,25 +41,33 @@ def main(*args):
         elif arg.startswith('-github:'):
             gitHubUser = arg[len('-github:'):]
     if not gitHubUser:
-        print( 'Missing required paramenter -github:<username>.' )
+        print('Missing required paramenter -github:<username>.')
         return
-    gitHubUrl = ( gitHubUrl % gitHubUser ) + '/%s'
-    site = pywikibot.Site() # pywikibot.Site( 'meta', 'meta' )
+    gitHubUrl = (gitHubUrl % gitHubUser) + '/%s'
+    site = pywikibot.Site()  # pywikibot.Site( 'meta', 'meta' )
     for dirpath, dirnames, files in os.walk(rootDir):
         for name in files:
-            ext = name.rsplit( '.', 1 )[-1].lower()
+            ext = name.rsplit('.', 1)[-1].lower()
             # Assume the structure is <mypath>/<repo>/src/<title.(js|css)>
-            if ext in [ 'js', 'css' ] and dirpath.endswith( '/src' ) and ( not repo or repo in name ):
+            if (ext in ['js', 'css'] and
+                    dirpath.endswith('/src') and
+                    (not repo or repo in name)):
                 # FIXME: Skip unchanged files (use git status?)
                 # Check for allowNullEdits
                 title = userPrefix + name
-                repoName = dirpath.rsplit( '/', 2 )[-2]
-                summary = gitHubSummary % ( gitHubUrl % repoName )
-                code = open( os.path.join( dirpath, name ), 'r' ).read()
+                repoName = dirpath.rsplit('/', 2)[-2]
+                summary = gitHubSummary % (gitHubUrl % repoName)
+                code = open(os.path.join(dirpath, name), 'r').read()
                 if ext == 'js':
                     try:
-                        minCode = uglipyjs.compile( code ).decode('utf-8')
-                        summary = summary + '; ' + uglifyjsSummary % ( pkg_resources.get_distribution("uglipyjs").version )
+                        minCode = uglipyjs.compile(
+                            code, {'preserveComments': 'some'})
+                        minCode = minCode.decode('utf-8')
+                        # summary = summary + '; ' + uglifyjsSummary %
+                        # (pkg_resources.get_distribution("uglipyjs").version)
+                        uv = pkg_resources.get_distribution("uglipyjs").version
+                        summary = '{}; {}'.format(
+                            summary, uglifyjsSummary % uv)
                     except execjs.ProgramError:
                         minCode = code.decode('utf-8')
                     newMinCode = re.sub(
@@ -70,13 +79,23 @@ def main(*args):
                         newMinCode = '// <nowiki>\n' + minCode
                     minCode = newMinCode + '\n// </nowiki>'
                     if tracking:
-                        minCode = u'// ' + ( tracking % title ) + u'\n' + minCode
+                        minCode = '// ' + (tracking % title) + '\n' + minCode
                 else:
-                    minCode = '/* <nowiki> */\n' + code.decode('utf-8') + '\n/* </nowiki> */'
+                    minCode = '/* <nowiki> */\n' + code + '\n/* </nowiki> */'
                     if tracking:
-                        minCode = u'/* ' + ( tracking % title ) + u' */\n' + minCode
-                page = pywikibot.Page( site, title )
+                        # minCode = '/* ' + (tracking % title) +
+                        # ' */\n' + minCode
+                        minCode = '/* {} */\n{}'.format(
+                            tracking % title, minCode)
+                page = pywikibot.Page(site, title)
                 page.text = minCode
-                page.save( summary )
+                page.save(summary)
+    page = pywikibot.Page(site, 'User:He7d3r/global.js')
+    page.text = ('// [[File:User:He7d3r/global.js]] (workaround for'
+                 ' [[phab:T35355]])\n//{ {subst:User:He7d3r/Tools.js}}\n'
+                 '{{subst:User:He7d3r/Tools.js}}')
+    page.save('Update')
+
+
 if __name__ == '__main__':
     main()
