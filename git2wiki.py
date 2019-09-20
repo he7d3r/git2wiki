@@ -26,7 +26,7 @@ def main(*args):
     # FIXME: Add UglifyJS version as in
     # "minify with UglifyJS v9.9.9"
     uglifyjsSummary = 'minify with UgliPyJS %s'
-    for arg in pywikibot.handleArgs():
+    for arg in pywikibot.handle_args():
         if arg == "-all":
             allowNullEdits = True
         elif arg == "-track":
