@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "git2wiki"
+version = "0.1.0"
+description = ""
+authors = ["Helder <he7d3r@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pywikibot = "^8.6.0"
+pyexecjs = "^1.5.1"
+uglipyjs = "^0.2.5"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
