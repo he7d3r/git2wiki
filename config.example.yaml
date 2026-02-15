@@ -1,0 +1,31 @@
+github_user: "your-github-username"
+user_prefix: "User:YourName/Tools/"
+root_dir: "$HOME/path/to/your/repos/"
+
+allow_null_edits: false
+repo_filter: null # or set to part of a filename to filter
+
+tracking_template: "[[File:{title}]] (workaround for [[phab:T35355]])"
+
+paths:
+  src_directory_name: "src"
+
+summaries:
+  github: "Sync with {repo_url}"
+  uglify: "minify with UgliPyJS {version}"
+
+wrapping:
+  javascript:
+    header: "// {tracking}\n// <nowiki>\n"
+    footer: "\n// </nowiki>"
+  css:
+    header: "/* {tracking} */\n/* <nowiki> */\n"
+    footer: "\n/* </nowiki> */"
+
+global_page:
+  enabled: true
+  title: "User:YourName/global.js"
+  content: |
+    // [[File:User:YourName/global.js]]
+    {{subst:User:YourName/Tools.js}}
+  summary: "Update"
