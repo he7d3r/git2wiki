@@ -1,3 +1,5 @@
+.vscode
+
 # Pywikibot config
 user-config.py
 user-password.py
