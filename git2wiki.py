@@ -12,7 +12,6 @@ Architecture:
 from __future__ import annotations
 
 import os
-import re
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -24,88 +23,61 @@ import pkg_resources
 import pywikibot
 import pywikibot.bot
 import uglipyjs
+import yaml
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 # ============================================================
-# Configuration
+# Configuration Models
 # ============================================================
 
 
-@dataclass(frozen=True)
-class SyncConfig:
-    user_prefix: str
+class PathsConfig(BaseModel):
+    src_directory_name: str = "src"
+
+
+class SummaryConfig(BaseModel):
+    github: str = "Sync with {repo_url}"
+    uglify: str = "minify with UgliPyJS {version}"
+
+
+class WrappingTemplates(BaseModel):
+    header: str
+    footer: str
+
+
+class WrappingConfig(BaseModel):
+    javascript: WrappingTemplates
+    css: WrappingTemplates
+
+
+class GlobalPageConfig(BaseModel):
+    enabled: bool = False
+    title: str
+    content: str
+    summary: str = "Update"
+
+
+class SyncConfig(BaseModel):
     github_user: str
-    tracking_template: str | None
-    allow_null_edits: bool
-    repo_filter: str | None
+    user_prefix: str
     root_dir: Path
-    github_summary_template: str
-    uglify_summary_template: str
 
-
-def parse_args() -> SyncConfig:
-    user_prefix: str | None = None
-    github_user: str | None = None
-    tracking: str | None = None
-    allow_null_edits = False
+    allow_null_edits: bool = False
     repo_filter: str | None = None
-    root_dir: Path | None = None
+    tracking_template: str | None = None
 
-    for arg in pywikibot.handle_args():
-        option, _, value = arg.partition(":")
-        if not value and option not in ("-all", "-track"):
-            pywikibot.error(f"Option {option} requires a value")
+    paths: PathsConfig = Field(default_factory=PathsConfig)
+    summaries: SummaryConfig = Field(default_factory=SummaryConfig)
+    wrapping: WrappingConfig
+    global_page: GlobalPageConfig | None = None
 
-        if option == "-all":
-            allow_null_edits = True
-        elif option == "-track":
-            tracking = "[[File:%s]] (workaround for [[phab:T35355]])"
-        elif option == "-prefix":
-            user_prefix = value
-        elif option == "-repo":
-            repo_filter = value
-        elif option == "-mypath":
-            root_dir = Path(value)
-        elif option == "-github":
-            github_user = value
-
-    missing_params = []
-    if not github_user:
-        missing_params.append("-github:<username>")
-    if not user_prefix:
-        missing_params.append("-prefix:<value>")
-
-    if missing_params:
-        additional_text = (
-            "\nUsage: git2wiki.py -github:<username> [options]\n\n"
-            "Required parameters:\n"
-            "  -github:<username>    GitHub username for the repository\n\n"
-            "Optional parameters:\n"
-            "  -prefix:<value>       Wiki page prefix (e.g.: User:A/B/)\n"
-            "  -repo:<name>          Filter by repository (default: all)\n"
-            "  -mypath:<path>        Root directory (default: current)\n"
-            "  -all                  Allow null edits\n"
-            "  -track                Add tracking comment to pages"
-        )
-        pywikibot.bot.suggest_help(
-            missing_parameters=missing_params, additional_text=additional_text
-        )
-        sys.exit(2)
-
-    assert user_prefix is not None
-    assert github_user is not None
-
-    return SyncConfig(
-        user_prefix=user_prefix,
-        github_user=github_user,
-        tracking_template=tracking,
-        allow_null_edits=allow_null_edits,
-        repo_filter=repo_filter,
-        root_dir=root_dir or Path.cwd(),
-        # TODO: Add git hash/version as in
-        # "Sync with https://github.com/FOO/BAR (v9.9.9 or HASH)"
-        github_summary_template="Sync with %s",
-        uglify_summary_template="minify with UgliPyJS %s",
-    )
+    @field_validator("root_dir", mode="before")
+    @classmethod
+    def expand_path(cls, v):
+        if isinstance(v, str):
+            v = os.path.expandvars(v)
+            v = os.path.expanduser(v)
+        return Path(v)
 
 
 # ============================================================
@@ -129,7 +101,7 @@ class WikiPage:
 
 
 # ============================================================
-# Infrastructure Services
+# Infrastructure
 # ============================================================
 
 
@@ -149,9 +121,10 @@ class FileSystemScanner:
         self.config = config
 
     def scan(self) -> Iterable[SourceFile]:
-        # Assume the structure is <mypath>/<repo>/src/<title.(js|css)>
+        src_name = self.config.paths.src_directory_name
+
         for dirpath, _, files in os.walk(self.config.root_dir):
-            if not dirpath.endswith("/src"):
+            if not dirpath.endswith(f"/{src_name}"):
                 continue
 
             repo_name = Path(dirpath).parts[-2]
@@ -164,8 +137,7 @@ class FileSystemScanner:
                     continue
 
                 filepath = Path(dirpath) / name
-                with open(filepath, "r", encoding="utf-8") as f:
-                    content = f.read()
+                content = filepath.read_text(encoding="utf-8")
 
                 yield SourceFile(
                     path=filepath,
@@ -176,7 +148,7 @@ class FileSystemScanner:
 
 
 # ============================================================
-# Services (Ports)
+# Services
 # ============================================================
 
 
@@ -201,7 +173,7 @@ class GitHubReference:
 
 
 # ============================================================
-# Page Processors (Strategy Pattern)
+# Page Processors
 # ============================================================
 
 
@@ -233,32 +205,22 @@ class JavaScriptPageProcessor(PageProcessor):
         minified, version = self.minifier.minify(source.content)
 
         title = self.config.user_prefix + source.filename
-        content = self._wrap_code(minified, title)
 
-        summary = self.config.github_summary_template % (
-            self.github.repo_url(source.repo_name)
+        tracking = ""
+        if self.config.tracking_template:
+            tracking = self.config.tracking_template.format(title=title)
+
+        wrapping = self.config.wrapping.javascript
+        content = wrapping.header.format(tracking=tracking) + minified + wrapping.footer
+
+        summary = self.config.summaries.github.format(
+            repo_url=self.github.repo_url(source.repo_name)
         )
 
         if version:
-            summary += "; " + self.config.uglify_summary_template % version
+            summary += "; " + self.config.summaries.uglify.format(version=version)
 
         return WikiPage(title=title, content=content, summary=summary)
-
-    def _wrap_code(self, code: str, title: str) -> str:
-        wrapped = re.sub(
-            r"(/\*\*\n \*.+? \*/\n)",
-            r"\1// <nowiki>\n",
-            code,
-            flags=re.DOTALL,
-        )
-        if wrapped == code:
-            wrapped = "// <nowiki>\n" + code
-        wrapped += "\n// </nowiki>"
-
-        if self.config.tracking_template:
-            wrapped = "// " + (self.config.tracking_template % title) + "\n" + wrapped
-
-        return wrapped
 
 
 class CssPageProcessor(PageProcessor):
@@ -272,46 +234,73 @@ class CssPageProcessor(PageProcessor):
     def process(self, source: SourceFile) -> WikiPage:
         title = self.config.user_prefix + source.filename
 
-        content = "/* <nowiki> */\n" + source.content + "\n/* </nowiki> */"
+        tracking = ""
         if self.config.tracking_template:
-            content = (
-                "/* " + (self.config.tracking_template % title) + " */\n" + content
-            )
+            tracking = self.config.tracking_template.format(title=title)
 
-        summary = self.config.github_summary_template % (
-            self.github.repo_url(source.repo_name)
+        wrapping = self.config.wrapping.css
+        content = (
+            wrapping.header.format(tracking=tracking) + source.content + wrapping.footer
+        )
+
+        summary = self.config.summaries.github.format(
+            repo_url=self.github.repo_url(source.repo_name)
         )
 
         return WikiPage(title=title, content=content, summary=summary)
 
 
 class GlobalPageProcessor:
-    """
-    Special page not based on filesystem input.
-    """
-
     def __init__(self, config: SyncConfig):
         self.config = config
 
     def build(self) -> WikiPage:
-
-        title = "User:He7d3r/global.js"
-        content = (
-            "// [[File:User:He7d3r/global.js]] (workaround for"
-            " [[phab:T35355]])\n//{ {subst:User:He7d3r/Tools.js}}\n"
-            "{{subst:User:He7d3r/Tools.js}}"
-        )
-
-        return WikiPage(title=title, content=content, summary="Update")
+        gp = self.config.global_page
+        assert gp is not None
+        return WikiPage(title=gp.title, content=gp.content, summary=gp.summary)
 
 
 # ============================================================
-# Orchestration
+# Configuration Loading
+# ============================================================
+
+
+def load_config_from_yaml(path: Path) -> SyncConfig:
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return SyncConfig.model_validate(raw)
+
+
+def parse_cli_config_path() -> Path:
+    config_path = None
+
+    for arg in pywikibot.handle_args():
+        option, _, value = arg.partition(":")
+        if option == "-configfile":
+            config_path = Path(value)
+
+    if not config_path:
+        pywikibot.bot.suggest_help(
+            missing_parameters=["-configfile:<path>"],
+            additional_text="Usage: git2wiki.py -configfile:/path/config.yaml",
+        )
+        sys.exit(2)
+
+    return config_path
+
+
+# ============================================================
+# Main
 # ============================================================
 
 
 def main() -> None:
-    config = parse_args()
+    config_path = parse_cli_config_path()
+
+    try:
+        config = load_config_from_yaml(config_path)
+    except ValidationError as e:
+        print(e)
+        sys.exit(1)
 
     site = pywikibot.Site()
     publisher = WikiPublisher(site, config.allow_null_edits)
@@ -333,9 +322,9 @@ def main() -> None:
                 publisher.publish(page)
                 break
 
-    # Global page
-    global_processor = GlobalPageProcessor(config)
-    publisher.publish(global_processor.build())
+    if config.global_page and config.global_page.enabled:
+        global_processor = GlobalPageProcessor(config)
+        publisher.publish(global_processor.build())
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+config.yaml
 .vscode
 
 # Pywikibot config
@@ -5,7 +6,7 @@ user-config.py
 user-password.py
 apicache-py3/
 throttle.ctrl
-pywikibot-He7d3r.lwp
+pywikibot-*.lwp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
