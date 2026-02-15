@@ -136,7 +136,7 @@ paths:
 From your cloned repository directory:
 
 ```bash
-pwb git2wiki.py -configfile:config.yaml
+python git2wiki.py -configfile:config.yaml
 ```
 
 The `-configfile` parameter must point to your YAML configuration file.

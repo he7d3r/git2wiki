@@ -15,11 +15,11 @@ import os
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from importlib import metadata
 from pathlib import Path
 from typing import Iterable
 
 import execjs
-import pkg_resources
 import pywikibot
 import pywikibot.bot
 import uglipyjs
@@ -158,7 +158,10 @@ class JSMinifier:
             minified = uglipyjs.compile(code, {"preserveComments": "some"})
             if isinstance(minified, bytes):
                 minified = minified.decode("utf-8")
-            version = pkg_resources.get_distribution("uglipyjs").version
+            try:
+                version = metadata.version("uglipyjs")
+            except metadata.PackageNotFoundError:
+                version = "unknown"
             return minified, version
         except execjs.ProgramError:
             return code, ""

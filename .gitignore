@@ -5,6 +5,7 @@ config.yaml
 user-config.py
 user-password.py
 apicache-py3/
+apicache/
 throttle.ctrl
 pywikibot-*.lwp
 
