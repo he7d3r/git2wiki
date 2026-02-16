@@ -22,6 +22,7 @@ from typing import Iterable
 import execjs
 import pywikibot
 import pywikibot.bot
+import pywikibot.site
 import uglipyjs
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -106,7 +107,7 @@ class WikiPage:
 
 
 class WikiPublisher:
-    def __init__(self, site: pywikibot.BaseSite, allow_null_edits: bool):
+    def __init__(self, site: pywikibot.site.BaseSite, allow_null_edits: bool):
         self.site = site
         self.allow_null_edits = allow_null_edits
 
